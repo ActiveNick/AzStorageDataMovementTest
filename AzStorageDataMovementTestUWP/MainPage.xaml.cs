@@ -84,9 +84,10 @@ namespace AzStorageDataMovementTestUWP
             // await container.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
 
             // Get a BlockBlob reference for the file to upload to the newly created container
-            Debug.WriteLine("2. Uploading BlockBlob");
+            Debug.WriteLine("2. Uploading BlockBlob...");
             CloudBlockBlob blockBlob = container.GetBlockBlobReference(TestMediaFile);
 
+            var sw = Stopwatch.StartNew();
 #if WINDOWS_UWP
             StorageFolder storageFolder = await Windows.ApplicationModel.Package.Current.InstalledLocation.GetFolderAsync("Assets");
             StorageFile sf = await storageFolder.GetFileAsync(TestMediaFile);
@@ -94,6 +95,10 @@ namespace AzStorageDataMovementTestUWP
 #else
         await blockBlob.UploadFromFileAsync(Path.Combine(Application.streamingAssetsPath, TestMediaFile));
 #endif
+            sw.Stop();
+            TimeSpan time = sw.Elapsed;
+
+            Debug.WriteLine(string.Format("3. File uploaded in {0}s", time.TotalSeconds.ToString()));
 
             Debug.WriteLine("-- Upload Test Complete --");
         }
@@ -145,9 +150,10 @@ namespace AzStorageDataMovementTestUWP
             {
                 // Download a blob to your file system
                 string path;
-                Debug.WriteLine(string.Format("3. Download Blob from {0}", blockBlob.Uri.AbsoluteUri));
+                Debug.WriteLine(string.Format("3. Download Blob from {0}...", blockBlob.Uri.AbsoluteUri));
                 string fileName = string.Format("CopyOf{0}", TestMediaFile);
 
+                var sw = Stopwatch.StartNew();
 #if WINDOWS_UWP
                 StorageFolder storageFolder = ApplicationData.Current.TemporaryFolder;
                 StorageFile sf = await storageFolder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
@@ -157,7 +163,10 @@ namespace AzStorageDataMovementTestUWP
             path = Path.Combine(Application.temporaryCachePath, fileName);
         await blockBlob.DownloadToFileAsync(path, FileMode.Create);
 #endif
-                Debug.WriteLine(string.Format("4. Blob file downloaded to {0}", path));
+                sw.Stop();
+                TimeSpan time = sw.Elapsed;
+
+                Debug.WriteLine(string.Format("4. Blob file downloaded to {0} in {1}s", path, time.TotalSeconds.ToString()));
 
                 //WriteLine("File written to " + path);
 
@@ -216,6 +225,7 @@ namespace AzStorageDataMovementTestUWP
                 Debug.WriteLine(string.Format("3. Download Blob from {0}", blockBlob.Uri.AbsoluteUri));
                 string fileName = string.Format("CopyOf{0}", TestMediaFile);
 
+                var sw = Stopwatch.StartNew();
 #if WINDOWS_UWP
                 // TO DO: UWP code is not complete and has not been tested yet. This is the old single operation code 
                 // I have only tested Data Movement in the Unity editor
@@ -237,7 +247,12 @@ namespace AzStorageDataMovementTestUWP
             dOptions.DisableContentMD5Validation = true;  // TO DO: Need to test if MD5 works, currently disabled
             await TransferManager.DownloadAsync(blockBlob, path, dOptions, context, CancellationToken.None);
 #endif
-                Debug.WriteLine(string.Format("4. Blob file downloaded with ADSM to {0}", path));
+                sw.Stop();
+                TimeSpan time = sw.Elapsed;
+
+                Debug.WriteLine(string.Format("4. Blob file downloaded to {0} in {1}s", path, time.TotalSeconds.ToString()));
+
+                Debug.WriteLine("-- Download Test Complete --");
             }
         }
     }
