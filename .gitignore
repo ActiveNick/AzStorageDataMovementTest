@@ -10,6 +10,9 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+# Include Custom Binaries specific to this project
+![Cc]ustom[Bb]inaries/**
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

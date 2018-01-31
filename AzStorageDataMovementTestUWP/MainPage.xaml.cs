@@ -17,7 +17,9 @@ using Windows.UI.Xaml.Navigation;
 
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
+#if FALLCREATORSUPDATE
 using Microsoft.WindowsAzure.Storage.DataMovement;
+#endif
 using System.Diagnostics;
 using Windows.Storage;
 
@@ -42,7 +44,7 @@ namespace AzStorageDataMovementTestUWP
             StorageAccount = CloudStorageAccount.Parse(ConnectionString);
         }
 
-        #region === UI BUTTON EVENT HANDLERS ===
+#region === UI BUTTON EVENT HANDLERS ===
         private async void btnUpload_Click(object sender, RoutedEventArgs e)
         {
             await BasicStorageBlockBlobUploadOperationsAsync();
@@ -67,7 +69,7 @@ namespace AzStorageDataMovementTestUWP
         {
             lblResults.Text = "";
         }
-        #endregion
+#endregion
 
         void AddResult(string textline)
         {
@@ -75,7 +77,7 @@ namespace AzStorageDataMovementTestUWP
             Debug.WriteLine(textline);
         }
 
-        #region === REQUIRES ONLY AZURE STORAGE LIBRARY ===
+#region === REQUIRES ONLY AZURE STORAGE LIBRARY ===
         /// <summary>
         /// Uploading a blob using standard Azure Storage library (no progress tracking)
         /// </summary>
@@ -228,9 +230,9 @@ namespace AzStorageDataMovementTestUWP
                 AddResult("Error: " + ex.InnerException.ToString());
             }
         }
-        #endregion
+#endregion
 
-        #region === REQUIRES ONLY AZURE STORAGE LIBRARY (WITH PROGRESS TRACKING) ===
+#region === REQUIRES ONLY AZURE STORAGE LIBRARY (WITH PROGRESS TRACKING) ===
         /// <summary>
         /// Download a blob using standard Azure Storage library (with progress tracking)
         /// </summary>
@@ -322,9 +324,9 @@ namespace AzStorageDataMovementTestUWP
                 AddResult("Error: " + ex.InnerException.ToString());
             }
         }
-        #endregion
+#endregion
 
-        #region === REQUIRES AZURE STORAGE DATA MOVEMENT LIBRARY ===
+#region === REQUIRES AZURE STORAGE DATA MOVEMENT LIBRARY ===
         /// <summary>
         /// Downloading a blob using Azure Storage Data Movement library (with progress tracking)
         /// </summary>
@@ -333,6 +335,11 @@ namespace AzStorageDataMovementTestUWP
         {
             try
             {
+#if FALLCREATORSUPDATE
+                // Dirty check to see if we are running Fall Creators Update (FCU, build 16299)
+                // otherwise we cannot make calls to the Azure Storage Data Movement library
+                // Change the FALLCREATORSUPDATE precompiler directive in build settings
+
                 AddResult("Downloading BlockBlob with ASDM Library");
 
                 // Create a blob client for interacting with the blob service.
@@ -402,6 +409,9 @@ namespace AzStorageDataMovementTestUWP
 
                     AddResult("-- Download Test Complete --");
                 }
+#else
+                AddResult("Cannot use Azure Storage DMLib. You are currently not running Fall Creators Update. Change minimum target to 16299, add FALLCREATORSUPDATE in build conditional compilation symbols, and re-add DMLib DLL reference.");
+#endif
             }
             catch (Exception ex)
             {
@@ -410,6 +420,21 @@ namespace AzStorageDataMovementTestUWP
                 AddResult("Error: " + ex.InnerException.ToString());
             }
         }
-        #endregion
+
+#endregion
+
+        long GetWindowsBuildNumber()
+        {
+            string deviceFamilyVersion = Windows.System.Profile.AnalyticsInfo.VersionInfo.DeviceFamilyVersion;
+            ulong version = ulong.Parse(deviceFamilyVersion);
+            ulong major = (version & 0xFFFF000000000000L) >> 48;
+            ulong minor = (version & 0x0000FFFF00000000L) >> 32;
+            ulong build = (version & 0x00000000FFFF0000L) >> 16;
+            ulong revision = (version & 0x000000000000FFFFL);
+            var osVersion = $"{major}.{minor}.{build}.{revision}";
+            Debug.WriteLine(osVersion);
+
+            return (long)build;
+        }
     }
 }
