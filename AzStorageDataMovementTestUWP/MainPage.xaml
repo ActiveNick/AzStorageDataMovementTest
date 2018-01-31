@@ -13,9 +13,14 @@
             <TextBlock Margin="12,12,12,0" Text="Azure Storage Connection String" />
             <TextBox x:Name="txtConnString" Margin="12,0,12,12" 
                      Text="DefaultEndpointsProtocol=http;AccountName=unityplaygroundstorage;AccountKey=7+VIWHlvb35VWw1AfwXCLH2+cshVGVCkUjFjPGxWyM09NOGy8/jsMFELvjJKpgi0m6ISPcM15ILZnOOanttEWg==;EndpointSuffix=core.windows.net" />
-            <Button x:Name="btnUpload" Margin="12" Content="Upload File" Click="btnUpload_Click"/>
-            <Button x:Name="btnDownload" Margin="12" Content="Download File" Click="btnDownload_Click"/>
-            <Button x:Name="btnDownloadDM" Margin="12" Content="Download File [DM]" Click="btnDownloadDM_Click"/>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="btnUpload" Margin="12" Content="Upload File" Click="btnUpload_Click"/>
+                <Button x:Name="btnDownload" Margin="12" Content="Download File" Click="btnDownload_Click"/>
+                <Button x:Name="btnDownloadProgress" Margin="12" Content="Download File [Progress]" Click="btnDownloadProgress_Click"/>
+                <Button x:Name="btnDownloadDM" Margin="12" Content="Download File [DMLib]" Click="btnDownloadDM_Click"/>
+                <Button x:Name="btnClear" Margin="12" Content="Clear Results" Click="btnClear_Click"/>
+            </StackPanel>
+            <TextBlock x:Name="lblResults" Margin="12" Height="373" TextWrapping="Wrap" ScrollViewer.VerticalScrollMode="Auto"/>
         </StackPanel>
     </Grid>
 </Page>
