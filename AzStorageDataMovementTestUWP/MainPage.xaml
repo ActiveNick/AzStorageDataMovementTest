@@ -19,6 +19,7 @@
                 <Button x:Name="btnDownloadProgress" Margin="12" Content="Download File [Progress]" Click="btnDownloadProgress_Click"/>
                 <Button x:Name="btnDownloadDM" Margin="12" Content="Download File [DMLib]" Click="btnDownloadDM_Click"/>
                 <Button x:Name="btnClear" Margin="12" Content="Clear Results" Click="btnClear_Click"/>
+                <CheckBox x:Name="chkOverwrite" Margin="12" Content="Allow Overwrite" />
             </StackPanel>
             <TextBlock x:Name="lblResults" Margin="12" Height="373" TextWrapping="Wrap" ScrollViewer.VerticalScrollMode="Auto"/>
         </StackPanel>

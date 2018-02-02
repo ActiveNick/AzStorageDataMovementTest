@@ -52,7 +52,7 @@ namespace AzStorageDataMovementTestUWP
 
         private async void btnDownload_Click(object sender, RoutedEventArgs e)
         {
-            await BasicStorageBlockBlobDownloadAsync();
+            await BasicStorageBlockBlobDownloadAsync(TestMediaFile, (bool)chkOverwrite.IsChecked);
         }
 
         private async void btnDownloadDM_Click(object sender, RoutedEventArgs e)
@@ -120,7 +120,7 @@ namespace AzStorageDataMovementTestUWP
                 StorageFile sf = await storageFolder.GetFileAsync(TestMediaFile);
                 await blockBlob.UploadFromFileAsync(sf);
 #else
-        await blockBlob.UploadFromFileAsync(Path.Combine(Application.streamingAssetsPath, TestMediaFile));
+                await blockBlob.UploadFromFileAsync(Path.Combine(Application.streamingAssetsPath, TestMediaFile));
 #endif
                 sw.Stop();
                 TimeSpan time = sw.Elapsed;
@@ -141,17 +141,15 @@ namespace AzStorageDataMovementTestUWP
         /// Downloading a blob using standard Azure Storage library (no progress tracking)
         /// </summary>
         /// <returns></returns>
-        private async Task BasicStorageBlockBlobDownloadAsync()
+        public async Task BasicStorageBlockBlobDownloadAsync(string MediaFile, bool overwrite)
         {
             try
             {
-                AddResult("Testing BlockBlob Download");
-
                 // Create a blob client for interacting with the blob service.
                 CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
 
                 // Create a container for organizing blobs within the storage account.
-                AddResult("1. Opening Blob Container");
+                AddResult("Opening Blob Container in Azure Storage.");
                 CloudBlobContainer container = blobClient.GetContainerReference(BlockBlobContainerName);
                 try
                 {
@@ -164,75 +162,84 @@ namespace AzStorageDataMovementTestUWP
                 }
 
                 // Access a specific blob in the container 
-                AddResult("2. Get Specific Blob in Container");
+                AddResult("Getting Specific Blob in Container.");
 
-                // NOTE: The following code isn't needed for now because we assume the client app knows which asset to
-                // download by name, so there is no need to iterate through all the blobs.
-                //CloudBlockBlob blockBlob = null;
-                //BlobContinuationToken token = null;
-                //BlobResultSegment list = await container.ListBlobsSegmentedAsync(token);
-                //foreach (IListBlobItem blob in list.Results)
-                //{
-                //    // Blob type will be CloudBlockBlob, CloudPageBlob or CloudBlobDirectory
-                //    // Use blob.GetType() and cast to appropriate type to gain access to properties specific to each type
-                //    WriteLine(string.Format("- {0} (type: {1})", blob.Uri, blob.GetType()));
-
-                //    // This next line doesn't work, need to check for the name on the specific blob type
-                //    if (blob == TestMediaFile)
-                //    {
-                //        blockBlob = (CloudBlockBlob)blob;
-                //    }
-                //}
-
-                CloudBlockBlob blockBlob = container.GetBlockBlobReference(TestMediaFile);
+                // We assume the client app knows which asset to download by name
+                CloudBlockBlob blockBlob = container.GetBlockBlobReference(MediaFile);
 
                 if (blockBlob != null)
                 {
                     // Download a blob to your file system
-                    string path;
-                    AddResult(string.Format("3. Download Blob from {0}...", blockBlob.Uri.AbsoluteUri));
-                    string fileName = string.Format("CopyOf{0}", TestMediaFile);
+                    string path = "";
+                    AddResult(string.Format("Downloading Blob from {0}, please wait...", blockBlob.Uri.AbsoluteUri));
+                    string fileName = MediaFile; // string.Format("CopyOf{0}", MediaFile);
 
-                    var sw = Stopwatch.StartNew();
+                    bool fileExists = false;
 #if WINDOWS_UWP
                     StorageFolder storageFolder = ApplicationData.Current.TemporaryFolder;
-                    StorageFile sf = await storageFolder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
-                    path = sf.Path;
+                    StorageFile sf;
+                    try
+                    {
+                        CreationCollisionOption collisionoption = (overwrite ? CreationCollisionOption.ReplaceExisting : CreationCollisionOption.FailIfExists);
+                        sf = await storageFolder.CreateFileAsync(fileName, collisionoption);
+                        fileExists = false; // if the file existed but we were allowed to overwrite it, let's treat it as if it didn't exist
+                        path = sf.Path;
+                    }
+                    catch (Exception)
+                    {
+                        // The file already exists and we're not supposed to overwrite it
+                        fileExists = true;
+                        sf = await storageFolder.GetFileAsync(fileName); // Necessary to avoid a compilation error below
+                    }
+#else
+                    path = Path.Combine(Application.temporaryCachePath, fileName);
+                    fileExists = File.Exists(path);
+#endif
+                    if (fileExists)
+                    {
+                        if (overwrite)
+                        {
+                            AddResult(string.Format("Already exists. Deleting file {0}", fileName));
+#if WINDOWS_UWP
+                            // Nothing to do here in UWP, we already Replaced it when we created the StorageFile
+#else
+                            File.Delete(path);
+#endif
+                        }
+                        else
+                        {
+                            AddResult(string.Format("File {0} already exists and overwriting is disabled. Download operation cancelled.", fileName));
+                            return;
+                        }
+                    }
+                    // Start the timer to measure performance
+                    var sw = Stopwatch.StartNew();
+#if WINDOWS_UWP
                     await blockBlob.DownloadToFileAsync(sf);
 #else
-            path = Path.Combine(Application.temporaryCachePath, fileName);
-        await blockBlob.DownloadToFileAsync(path, FileMode.Create);
+                    await blockBlob.DownloadToFileAsync(path, FileMode.Create);
 #endif
+                    // Stop the timer and report back on completion + performance
                     sw.Stop();
                     TimeSpan time = sw.Elapsed;
-
-                    AddResult(string.Format("4. Blob file downloaded to {0} in {1}s", path, time.TotalSeconds.ToString()));
-
-                    //WriteLine("File written to " + path);
-
-                    //// Clean up after the demo 
-                    //WriteLine("5. Delete block Blob");
-                    //await blockBlob.DeleteAsync();
-
-                    //// When you delete a container it could take several seconds before you can recreate a container with the same
-                    //// name - hence to enable you to run the demo in quick succession the container is not deleted. If you want 
-                    //// to delete the container uncomment the line of code below. 
-                    //WriteLine("6. Delete Container -- Note that it will take a few seconds before you can recreate a container with the same name");
-                    //await container.DeleteAsync();
+                    AddResult(string.Format("Blob file downloaded to {0} in {1}s.", path, time.TotalSeconds.ToString()));
                 }
-
-                AddResult("-- Download Test Complete --");
+                else
+                {
+                    AddResult(string.Format("File {0} not found in blob {1}.", MediaFile, blockBlob.Uri.AbsoluteUri));
+                }
             }
             catch (Exception ex)
             {
                 // Woops!
+                AddResult(string.Format("Error while downloading file {0}.", MediaFile));
                 AddResult("Error: " + ex.ToString());
                 AddResult("Error: " + ex.InnerException.ToString());
             }
         }
-#endregion
+        #endregion
 
-#region === REQUIRES ONLY AZURE STORAGE LIBRARY (WITH PROGRESS TRACKING) ===
+        #region === REQUIRES ONLY AZURE STORAGE LIBRARY (WITH PROGRESS TRACKING) ===
         /// <summary>
         /// Download a blob using standard Azure Storage library (with progress tracking)
         /// </summary>
@@ -297,6 +304,7 @@ namespace AzStorageDataMovementTestUWP
                             ms.Read(blobContents, 0, blobContents.Length);
                             fs.Seek((ulong)startPosition);
                             await fs.WriteAsync(blobContents.AsBuffer());
+                            //await fs.WriteAsync
                         }
                         AddResult("Completed: " + ((float)startPosition / (float)blobSize).ToString("P"));
                         startPosition += blockSize;
