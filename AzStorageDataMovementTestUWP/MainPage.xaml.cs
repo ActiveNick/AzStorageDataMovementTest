@@ -44,7 +44,7 @@ namespace AzStorageDataMovementTestUWP
             StorageAccount = CloudStorageAccount.Parse(ConnectionString);
         }
 
-#region === UI BUTTON EVENT HANDLERS ===
+        #region === UI BUTTON EVENT HANDLERS ===
         private async void btnUpload_Click(object sender, RoutedEventArgs e)
         {
             await BasicStorageBlockBlobUploadOperationsAsync();
@@ -62,14 +62,14 @@ namespace AzStorageDataMovementTestUWP
 
         private async void btnDownloadProgress_Click(object sender, RoutedEventArgs e)
         {
-            await StorageBlockBlobDownloadWithProgressTrackingAsync();
+            await StorageBlockBlobDownloadWithProgressTrackingAsync(TestMediaFile, (bool)chkOverwrite.IsChecked);
         }
 
         private void btnClear_Click(object sender, RoutedEventArgs e)
         {
             lblResults.Text = "";
         }
-#endregion
+        #endregion
 
         void AddResult(string textline)
         {
@@ -77,7 +77,7 @@ namespace AzStorageDataMovementTestUWP
             Debug.WriteLine(textline);
         }
 
-#region === REQUIRES ONLY AZURE STORAGE LIBRARY ===
+        #region === REQUIRES ONLY AZURE STORAGE LIBRARY ===
         /// <summary>
         /// Uploading a blob using standard Azure Storage library (no progress tracking)
         /// </summary>
@@ -244,7 +244,7 @@ namespace AzStorageDataMovementTestUWP
         /// Download a blob using standard Azure Storage library (with progress tracking)
         /// </summary>
         /// <returns></returns>
-        private async Task StorageBlockBlobDownloadWithProgressTrackingAsync()
+        private async Task StorageBlockBlobDownloadWithProgressTrackingAsync(string MediaFile, bool overwrite)
         {
             try
             {
@@ -282,17 +282,56 @@ namespace AzStorageDataMovementTestUWP
                     AddResult("3. Blob size (bytes):" + blobLengthRemaining.ToString());
 
                     // Download a blob to your file system
-                    string path;
+                    string path = "";
                     AddResult(string.Format("4. Download Blob from {0}...", blockBlob.Uri.AbsoluteUri));
-                    string fileName = string.Format("CopyOf{0}", TestMediaFile);
+                    string fileName = MediaFile; // string.Format("CopyOf{0}", MediaFile);
 
-                    var sw = Stopwatch.StartNew();
+                    bool fileExists = false;
 #if WINDOWS_UWP
                     StorageFolder storageFolder = ApplicationData.Current.TemporaryFolder;
-                    StorageFile sf = await storageFolder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
-                    path = sf.Path;
+                    StorageFile sf;
+                    try
+                    {
+                        CreationCollisionOption collisionoption = (overwrite ? CreationCollisionOption.ReplaceExisting : CreationCollisionOption.FailIfExists);
+                        sf = await storageFolder.CreateFileAsync(fileName, collisionoption);
+                        fileExists = false; // if the file existed but we were allowed to overwrite it, let's treat it as if it didn't exist
+                        path = sf.Path;
+                    }
+                    catch (Exception)
+                    {
+                        // The file already exists and we're not supposed to overwrite it
+                        fileExists = true;
+                        sf = await storageFolder.GetFileAsync(fileName); // Necessary to avoid a compilation error below
+                    }
+#else
+                    path = Path.Combine(Application.temporaryCachePath, fileName);
+                    fileExists = File.Exists(path);
+#endif
+                    if (fileExists)
+                    {
+                        if (overwrite)
+                        {
+                            AddResult(string.Format("Already exists. Deleting file {0}", fileName));
+#if WINDOWS_UWP
+                            // Nothing to do here in UWP, we already Replaced it when we created the StorageFile
+#else
+                        File.Delete(path);
+#endif
+                        }
+                        else
+                        {
+                            AddResult(string.Format("File {0} already exists and overwriting is disabled. Download operation cancelled.", fileName));
+                            return;
+                        }
+                    }
+#if WINDOWS_UWP
                     var fs = await sf.OpenAsync(FileAccessMode.ReadWrite);
+#else
+                    FileStream fs = new FileStream(path, FileMode.OpenOrCreate);
+#endif
 
+                    // Start the timer to measure performance
+                    var sw = Stopwatch.StartNew();
                     do
                     {
                         long blockSize = Math.Min(segmentSize, blobLengthRemaining);
@@ -302,9 +341,13 @@ namespace AzStorageDataMovementTestUWP
                             await blockBlob.DownloadRangeToStreamAsync(ms, (long)startPosition, blockSize);
                             ms.Position = 0;
                             ms.Read(blobContents, 0, blobContents.Length);
+#if WINDOWS_UWP
                             fs.Seek((ulong)startPosition);
                             await fs.WriteAsync(blobContents.AsBuffer());
-                            //await fs.WriteAsync
+#else
+                        fs.Position = startPosition;
+                        fs.Write(blobContents, 0, blobContents.Length);
+#endif
                         }
                         AddResult("Completed: " + ((float)startPosition / (float)blobSize).ToString("P"));
                         startPosition += blockSize;
@@ -313,10 +356,7 @@ namespace AzStorageDataMovementTestUWP
                     while (blobLengthRemaining > 0);
                     AddResult("Completed: 100.00%");
                     fs = null;
-#else
-                path = Path.Combine(Application.temporaryCachePath, fileName);
-                //await blockBlob.DownloadToFileAsync(path, FileMode.Create);
-#endif
+
                     sw.Stop();
                     TimeSpan time = sw.Elapsed;
 
