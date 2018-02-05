@@ -355,6 +355,10 @@ namespace AzStorageDataMovementTestUWP
                     }
                     while (blobLengthRemaining > 0);
                     AddResult("Completed: 100.00%");
+#if !WINDOWS_UWP
+                    // Required for Mono & .NET or we'll get a file IO access violation the next time we try to access it
+                    fs.Close();
+#endif
                     fs = null;
 
                     sw.Stop();
